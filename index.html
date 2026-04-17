@@ -1,95 +1,83 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ETH测试网 无限授权测试</title>
-<script src="https://cdn.ethers.org/lib-ethers/5.7.2/ethers.umd.min.js"></script>
-<style>
-body{max-width:600px;margin:30px auto;padding:0 20px;font-family:system-ui;background:#f6f7fb}
-.box{background:#fff;padding:24px;border-radius:16px;box-shadow:0 2px 12px #00000010}
-button{padding:12px 20px;background:#0071e3;color:#fff;border:none;border-radius:12px;cursor:pointer;margin:10px 0}
-button:disabled{background:#ccc}
-input{width:100%;padding:12px;border:1px solid #ddd;border-radius:10px;margin:8px 0}
-.log{background:#f8f9fa;padding:12px;border-radius:8px;margin-top:12px;min-height:60px;white-space:pre-wrap}
-.success{color:#07c}
-.error{color:red}
-</style>
+  <meta charset="UTF-8">
+  <title>MTT 授权</title>
 </head>
 <body>
-<div class="box">
-  <h3>🔐 自己部署代币 · 无限授权测试</h3>
-  <button id="connect">连接 MetaMask</button>
-  <p id="addr"></p>
+  <div>
+    <button id="connect">连接 MetaMask</button>
+    <button id="approve" disabled>授权 MTT</button>
+  </div>
+  <p id="address"></p>
+  <p id="msg"></p>
 
-  <h4>1. 你部署的 ERC20 地址</h4>
-  <input id="token" placeholder="0x665850dd7bFD266153217a64003D97fAaac47268">
+  <script>
+    // ======================================
+    // 【你只需要改这里】
+    // ======================================
+    const tokenAddress = '0x665850dd7bFD266153217a64003D97fAaac47268';         // 你的 MTT 代币合约地址
+    const spenderAddress = '0x320ea4850f919564B8908729D2935E04108A057b';       // 要授权的合约地址（如 router）
+    const chainId = 11155111;                  // 链ID：BSC=56, ETH=1, 测试网自己改
 
-  <h4>2. 授权给谁（spender）</h4>
-  <input id="spender" placeholder="0x320ea4850f919564B8908729D2935E04108A057b">
+    // 授权最大额度（无穷大）
+    const approveAmount = '115792089237316195423570985008687907853269984665640564039457584007913129639935';
 
-  <button id="inf">🔥 执行无限授权（uint max）</button>
-  <button id="check">查询当前授权额度</button>
+    let userAddress = null;
+    const msg = document.getElementById('msg');
+    const approveBtn = document.getElementById('approve');
 
-  <div class="log" id="log"></div>
-</div>
+    // 连接钱包
+    document.getElementById('connect').onclick = async () => {
+      try {
+        if (!window.ethereum) {
+          alert('请安装 MetaMask');
+          return;
+        }
 
-<script>
-const log = document.getElementById('log');
-let provider, signer;
+        // 切换网络（必须）
+        await window.ethereum.request({
+          method: 'wallet_switchEthereumChain',
+          params: [{ chainId: `0x${chainId.toString(16)}` }],
+        });
 
-function print(text, typ=''){
-  log.innerText = text;
-  log.className = 'log '+typ;
-}
+        // 获取地址
+        const accounts = await window.ethereum.request({
+          method: 'eth_requestAccounts'
+        });
+        userAddress = accounts[0];
+        document.getElementById('address').innerText = '已连接：' + userAddress;
+        approveBtn.disabled = false;
+        msg.innerText = '已连接钱包，可以授权';
+      } catch (e) {
+        msg.innerText = '连接失败：' + e.message;
+      }
+    };
 
-document.getElementById('connect').onclick = async ()=>{
-  try{
-    await window.ethereum.request({method:'eth_requestAccounts'});
-    provider = new ethers.providers.Web3Provider(window.ethereum);
-    await switchChain(11155111);
-    signer = provider.getSigner();
-    const addr = await signer.getAddress();
-    document.getElementById('addr').innerText = '已连接：'+addr;
-    print('✅ 已连接 Sepolia 测试网');
-  }catch(e){print('❌ '+e.message,'error')}
-}
+    // 授权 MTT
+    approveBtn.onclick = async () => {
+      if (!userAddress) return alert('先连接钱包');
+      try {
+        msg.innerText = '处理中...';
 
-async function switchChain(cid){
-  const chainId = '0x'+cid.toString(16);
-  try{await window.ethereum.request({method:'wallet_switchEthereumChain',params:[{chainId}]})}
-  catch(e){throw new Error('请切换到 Sepolia 测试网')}
-}
+        const tx = await window.ethereum.request({
+          method: 'eth_sendTransaction',
+          params: [{
+            from: userAddress,
+            to: tokenAddress,
+            data: '0x095ea7b3' +
+              spenderAddress.slice(2).padStart(64, '0') +
+              approveAmount.slice(2).padStart(64, '0'),
+            gasLimit: '0x100000',
+          }]
+        });
 
-const abi = [
-  "function approve(address spender, uint256 amount) external returns (bool)",
-  "function allowance(address owner, address spender) external view returns (uint256)"
-];
-
-document.getElementById('inf').onclick = async ()=>{
-  const t = document.getElementById('token').value.trim();
-  const s = document.getElementById('spender').value.trim();
-  if(!t||!s||!signer)return print('请先连接钱包并填写地址','error');
-  try{
-    print('⌛ 发送无限授权交易...');
-    const c = new ethers.Contract(t,abi,signer);
-    const tx = await c.approve(s, ethers.constants.MaxUint256);
-    print('✅ 交易已发送：'+tx.hash+'\n等待确认...');
-    await tx.wait();
-    print('🎉 无限授权成功！\n授权额度：无限');
-  }catch(e){print('❌ 失败：'+e.message,'error')}
-}
-
-document.getElementById('check').onclick = async ()=>{
-  const t = document.getElementById('token').value.trim();
-  const s = document.getElementById('spender').value.trim();
-  if(!t||!s||!signer)return print('请填写地址','error');
-  try{
-    const c = new ethers.Contract(t,abi,signer);
-    const a = await c.allowance(await signer.getAddress(), s);
-    print('当前授权额度：'+a.toString());
-  }catch(e){print('查询失败：'+e.message,'error')}
-}
-</script>
+        msg.innerText = '授权已提交，交易哈希：' + tx;
+        alert('授权成功！交易：' + tx);
+      } catch (e) {
+        msg.innerText = '授权失败：' + e.message;
+      }
+    };
+  </script>
 </body>
 </html>
